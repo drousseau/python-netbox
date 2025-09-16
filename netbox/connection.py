@@ -7,13 +7,14 @@ from netbox import exceptions
 class NetboxConnection(object):
 
     def __init__(self, ssl_verify=False, use_ssl=True, host=None, auth_token=None, auth=None,
-                 port=None, api_prefix=None, extra_headers=None):
+                 port=None, api_prefix=None, extra_headers=None, proxy=None):
         self.use_ssl = use_ssl
         self.host = host
         self.auth_token = auth_token
         self.port = port
         self.auth = auth
         self.api_prefix = api_prefix
+        self.proxy = proxy
 
         self.base_url = 'http{s}://{host}{p}{prefix}'.format(s='s' if use_ssl else '', p=':{}'.format(self.port) if self.port else '', host=self.host, prefix='/api' if api_prefix is None else api_prefix)
 
@@ -28,6 +29,9 @@ class NetboxConnection(object):
             self.session.headers.update({'Authorization': token})
             self.session.headers.update({'Accept': 'application/json'})
             self.session.headers.update({'Content-Type': 'application/json'})
+
+        if ( self.proxy != None ):
+            self.session.proxies = { 'http': self.proxy, 'https': self.proxy }
 
         if auth and auth_token:
             raise exceptions.AuthException('Only one authentication method is possible. Please use auth or auth_token')
@@ -55,6 +59,9 @@ class NetboxConnection(object):
 
         try:
             response = self.session.send(prepared_request)
+        except requests.exceptions.ProxyError as e:
+            err_msg = 'Proxy error: {}'.format(e)
+            raise ConnectionError(err_msg) from None
         except requests.exceptions.ConnectionError:
             err_msg = 'Unable to connect to Netbox host: {}'.format(self.host)
             raise ConnectionError(err_msg) from None
